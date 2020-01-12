@@ -89,35 +89,44 @@ class QuestionAnswer:
         print(document_model.summary())
         return document_model
 
+    def get_sentence_model(self, embedding, use_attention=False, question_output=None, question_input=None):
 
-    def get_sentence_model(self, embedding, use_attention=False, question_model=None):
-        text_input = Input(shape=(None,), ragged=True, dtype="int64", name="text_input")
+        text_input = Input(shape=(None,), dtype="int64", name="text_input")
+
         text_embedding = embedding(text_input)
         output = Conv1D(128, 4, padding="same", activation="relu", strides=1)(text_embedding)
 
         if use_attention:
-            attention = AdditiveAttention()([output, question_model])
+            attention = AdditiveAttention()([output, question_output])
             output = GlobalAveragePooling1D()(attention)
 
-        model = Model(text_input, output)
+        model = Model([text_input, question_input], output)
         return model
 
-    def get_section_model(self, sentence_model, question_model):
-        section_input = Input(shape=(None, None), ragged=True, name="section_input")
-        section_encoded = TimeDistributed(sentence_model)(section_input)
+    def get_question_output(self, embedding):
+
+        question_input = Input(shape=(None,), dtype="int64", name="question_input")
+        text_embedding = embedding(question_input)
+        output = Conv1D(128, 4, padding="same", activation="relu", strides=1)(text_embedding)
+
+        return question_input, output
+
+    def get_section_model(self, sentence_model, question_output=None, question_input=None):
+        section_input = Input(shape=(None, None), name="section_input")
+        section_encoded = TimeDistributed(sentence_model)([section_input, question_input])
         section_encoded = Conv1D(128, 4, padding="same", activation="relu", strides=1)(section_encoded)
-        attention = AdditiveAttention()([section_encoded, question_model])
+        attention = AdditiveAttention()([section_encoded, question_output])
         output = GlobalAveragePooling1D()(attention)
-        model = Model(section_input,  output)
+        model = Model([section_input, question_input],  output)
         return model
 
-    def get_document_model(self, section_model, question_model):
-        document_input = Input(shape=(None, None, None), ragged=True, name="document_input")
-        document_encoded = TimeDistributed(section_model)(document_input)
+    def get_document_model(self, section_model, question_output=None, question_input=None):
+        document_input = Input(shape=(None, None, None), name="document_input")
+        document_encoded = TimeDistributed(section_model)([document_input, question_input])
         cnn_1d = Conv1D(128, 4, padding="same", activation="relu", strides=1)(document_encoded)
-        attention = AdditiveAttention()([cnn_1d, question_model])
+        attention = AdditiveAttention()([cnn_1d, question_output])
         output = GlobalAveragePooling1D()(attention)
-        model = Model(document_input, output)
+        model = Model([document_input, question_input], output)
         return model
 
     def get_model(self):
@@ -127,11 +136,11 @@ class QuestionAnswer:
         embedding = Embedding(self.vocabulary_size, self.embedding_size, mask_zero=False, trainable=True,
                                    weights=None if self.embedding_matrix is None else [self.embedding_matrix])
 
-        self.question_model = self.get_sentence_model(embedding)
-        self.sentence_model = self.get_sentence_model(embedding, use_attention=True)
+        self.question_input, self.question_output = self.get_question_output(embedding)
+        self.sentence_model = self.get_sentence_model(embedding, question_input=self.question_input, question_output=self.question_output, use_attention=True)
 
-        self.section_model = self.get_section_model(self.sentence_model, self.question_model)
-        self.document_model = self.get_document_model(self.section_model, self.question_model)
+        self.section_model = self.get_section_model(self.sentence_model, question_input=self.question_input, question_output=self.question_output)
+        self.document_model = self.get_document_model(self.section_model, self.question_output)
 
         optimizer = Adadelta()
 
@@ -140,12 +149,14 @@ class QuestionAnswer:
         self.document_model.compile(loss=loss_metrics, optimizer=optimizer, metrics=[loss_metrics])
         self.document_model.summary()
 
-    def preprocess(self, X, y):
+    def preprocess(self, X, y, questions):
         X = pad_nested_sequences(X) #pad_sequences(X, padding="post", truncating="post", maxlen=self.question_text_size, value=0.0)
         y = pad_nested_sequences(y) #pad_sequences(y, padding="post", truncating="post", maxlen=self.document_max_size, value=0.0)
-        return X, y
+        questions = pad_sequences(questions, padding="post", truncating="post", maxlen=self.question_text_size, value=0.0)
 
-    def fit(self, input=None, output=None, batch_size=100, epochs=200):
+        return X, y, questions
+
+    def fit(self, input=None, question_input=None, output=None, batch_size=100, epochs=200):
 
         if self.vectorizer_path != None:
             self.vectorizer = MultiVectorizer.load(self.vectorizer_path)
@@ -155,11 +166,11 @@ class QuestionAnswer:
 
         self.model = self.get_model()
 
-        #input_padded, output_padded = self.preprocess(input, output)
+        input, output, question_input = self.preprocess(input, output, question_input)
         #self.example().fit(input_padded, output_padded, use_multiprocessing=True, epochs=10, batch_size=1)
         callback = self.CallbackActions(vectorizer=self.vectorizer)
-
-        self.model.fit(input, output, use_multiprocessing=True, callbacks=[callback], epochs=epochs, batch_size=batch_size, verbose=2)
+        text_input = input
+        self.model.fit({"question_input": question_input, "text_input": text_input}, output, use_multiprocessing=True, callbacks=[callback], epochs=epochs, batch_size=batch_size, verbose=2)
         return
 
     def save(self, weight_path="data/weights/weights.h5", vectorizer_path="data/weights/vectorizer/"):
@@ -309,9 +320,9 @@ class QuestionAnswer:
         data_df.to_excel("data/Training_Data.xlsx", index=False)
 
         docs = self.vectorizer.fit(self.documents_h)
-        #document_h_ragged = tf.ragged.constant(docs)
+        document_h_ragged = tf.ragged.constant(docs)
         qs = self.vectorizer.fit(self.questions)
-        #questions_ragged = qs #tf.ragged.constant(qs)
+        questions_ragged = qs #tf.ragged.constant(qs)
         targets = self.target_values
 
         #target_values_ragged = tf.ragged.constant(targets)
@@ -380,7 +391,7 @@ if __name__ == "__main__":
     #qa_model = QuestionAnswer(glove_path="D:/Development/Embeddings/Glove/glove.6B.300d.txt", tokenizer=str.split)
     qa_model = QuestionAnswer(tokenizer=str.split)
 
-    data_df, documents, questions, y = qa_model.load_data("data/jsonl_data/", filename="simplified-nq-train.jsonl", n_rows=5)
+    data_df, documents, questions, y = qa_model.load_data("data/", filename="simplified-nq-train.jsonl", n_rows=5)
 
 
     y = []
@@ -391,4 +402,4 @@ if __name__ == "__main__":
         y.append(tocs)
 
     output = y
-    qa_model.fit(input=documents, output=output)
+    qa_model.fit(input=documents, question_input=questions, output=output)
