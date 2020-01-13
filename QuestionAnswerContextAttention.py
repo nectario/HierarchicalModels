@@ -26,7 +26,7 @@ document_max_size = 6000
 section_max_size = 500
 question_max_size = 110
 answer_max_size = 15000
-sentence_max_size = 100
+sentence_max_size = 110
 and_pattern = re.compile(r"&[ ]?amp;")
 import py_compile
 from time import time
@@ -91,7 +91,7 @@ class QuestionAnswer:
 
     def get_sentence_model(self, embedding, use_attention=False, question_output=None, question_input=None):
 
-        text_input = Input(shape=(None,), dtype="int64", name="text_input")
+        text_input = Input(shape=(sentence_max_size,), dtype="int64", name="text_input")
 
         text_embedding = embedding(text_input)
         output = Conv1D(128, 4, padding="same", activation="relu", strides=1)(text_embedding)
@@ -105,28 +105,28 @@ class QuestionAnswer:
 
     def get_question_output(self, embedding):
 
-        question_input = Input(shape=(None,), dtype="int64", name="question_input")
+        question_input = Input(shape=(question_max_size,), dtype="int64", name="question_input")
         text_embedding = embedding(question_input)
         output = Conv1D(128, 4, padding="same", activation="relu", strides=1)(text_embedding)
 
         return question_input, output
 
     def get_section_model(self, sentence_model, question_output=None, question_input=None):
-        section_input = Input(shape=(None, None), name="section_input")
+        section_input = Input(shape=(section_max_size, sentence_max_size), name="section_input")
         section_encoded = TimeDistributed(sentence_model)([section_input, question_input])
         section_encoded = Conv1D(128, 4, padding="same", activation="relu", strides=1)(section_encoded)
         attention = AdditiveAttention()([section_encoded, question_output])
         output = GlobalAveragePooling1D()(attention)
-        model = Model([section_input, question_input],  output)
+        model = Model(section_input,  output)
         return model
 
     def get_document_model(self, section_model, question_output=None, question_input=None):
-        document_input = Input(shape=(None, None, None), name="document_input")
+        document_input = Input(shape=(document_max_size, section_max_size, sentence_max_size), name="document_input")
         document_encoded = TimeDistributed(section_model)([document_input, question_input])
         cnn_1d = Conv1D(128, 4, padding="same", activation="relu", strides=1)(document_encoded)
         attention = AdditiveAttention()([cnn_1d, question_output])
         output = GlobalAveragePooling1D()(attention)
-        model = Model([document_input, question_input], output)
+        model = Model(document_input, output)
         return model
 
     def get_model(self):
