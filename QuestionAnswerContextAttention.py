@@ -89,6 +89,23 @@ class QuestionAnswer:
         print(document_model.summary())
         return document_model
 
+    def example_2(self):
+
+        # Encode each timestep
+        input_1 = Input(shape=(None,), dtype='int64', name="Input1")
+        input_2 = Input(shape=(None,), dtype='int64', name="Input2")
+
+        output = Concatenate([input_1, input_2])
+        output = TimeDistributed(output)([input_1, input_2])
+
+        model = Model([input_1, input_2], output)
+        model.compile(loss='categorical_crossentropy',
+                               optimizer='rmsprop',
+                               metrics=['accuracy'])
+
+        return model
+
+
     def get_sentence_model(self, embedding, use_attention=False, question_output=None, question_input=None):
 
         text_input = Input(shape=(sentence_max_size,), dtype="int64", name="text_input")
@@ -391,15 +408,20 @@ if __name__ == "__main__":
     #qa_model = QuestionAnswer(glove_path="D:/Development/Embeddings/Glove/glove.6B.300d.txt", tokenizer=str.split)
     qa_model = QuestionAnswer(tokenizer=str.split)
 
-    data_df, documents, questions, y = qa_model.load_data("data/", filename="simplified-nq-train.jsonl", n_rows=5)
+    # data_df, documents, questions, y = qa_model.load_data("data/", filename="simplified-nq-train.jsonl", n_rows=5)
+    #
+    # y = []
+    # for doc in documents:
+    #     tocs = []
+    #     for token in doc:
+    #         tocs.append(np.random.random_integers(0, high=1))
+    #     y.append(tocs)
 
+    #output = y
+    #qa_model.fit(input=documents, question_input=questions, output=output)
 
-    y = []
-    for doc in documents:
-        tocs = []
-        for token in doc:
-            tocs.append(np.random.random_integers(0, high=1))
-        y.append(tocs)
+    input_1 = np.array([[1,2,3,4,5,6,7]])
+    input_2 = np.array([[1,1,1,1,1,1,1]])
+    y = np.array([1,0,1,1,0,0,1])
 
-    output = y
-    qa_model.fit(input=documents, question_input=questions, output=output)
+    qa_model.example_2().fit(input=[input_1,input_2], output=y)
