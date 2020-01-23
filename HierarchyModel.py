@@ -3,9 +3,9 @@ import pickle
 
 from tensorflow.keras.layers import Dense, Embedding, Input, LSTM, TimeDistributed
 from tensorflow.keras.models import Model
+from common.data_utils import *
 
-
-class RaggedProblem:
+class HierarchyModel:
 
     def example(self):
         # Encode each timestep
@@ -17,20 +17,16 @@ class RaggedProblem:
         section_input = Input(shape=(None, None), dtype='int64', ragged=True, name="Input2")
         section_encoded = TimeDistributed(encoded_model)(section_input)
         section_encoded = LSTM(300)(section_encoded)
-        section_model = Model(section_input, section_encoded)
+        section_encoded = Dense(1)(section_encoded)
 
-        document_input = Input(shape=(None, None, None), dtype='int64', ragged=True, name="Input3")
-        document_encoded = TimeDistributed(section_model)(document_input)
-        document_encoded = LSTM(300, return_sequences=True)(document_encoded)
-        document_encoded = Dense(1)(document_encoded)
-        document_model = Model(document_input, document_encoded)
-        document_model.compile(loss='categorical_crossentropy',
+        model = Model(section_input, section_encoded)
+        model.compile(loss='categorical_crossentropy',
                                optimizer='rmsprop',
                                metrics=['accuracy'])
 
-        print(section_model.summary())
-        print(document_model.summary())
-        return document_model
+        print(encoded_model.summary())
+        print(model.summary())
+        return model
 
     def get_model(self):
         model = self.example()
@@ -44,10 +40,16 @@ class RaggedProblem:
 
 if __name__ == "__main__":
 
-    qa_model = RaggedProblem()
+    model = HierarchyModel()
 
-    input = pickle.load(open("data/X.dat", "rb"))
-    output = pickle.load(open("data/y.dat", "rb"))
+    imdb_data_df = load_data("C:/Development/Projects/IMDB/IMDB Dataset.csv")
+    imdb_data_df["review"] = imdb_data_df["review"].apply(get_sentences)
+    imdb_data_df["labels"] = imdb_data_df["sentiment"].replace("positive",1).replace("negative",0)
 
-    qa_model.fit(input=input, output=output)
+    X = imdb_data_df["review"].values
+    X = pad_nested_sequences(X)
+    y = imdb_data_df["labels"]
+    print("Done")
+
+    model.fit(input=X, output=y)
 

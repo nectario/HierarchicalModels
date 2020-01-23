@@ -40,6 +40,16 @@ def get_dimensions(array, level=0):
     except TypeError: #not an iterable
         pass
 
+def get_max_shape_2(array):
+    sent_lengths = set()
+    word_lengths = set()
+
+    for element in array:
+        sent_lengths.add(len(element))
+        for elem in element:
+            word_lengths.add(len(elem))
+
+    return (len(array), max(sent_lengths), max(word_lengths))
 
 def get_max_shape(array):
     dimensions = defaultdict(int)
@@ -54,10 +64,17 @@ def iterate_nested_array(array, index=()):
     except TypeError:  # final level
         yield (*index, slice(len(array))), array
 
+def get_sentences(text):
+    return sent_tokenize(text)
 
 def pad_nested_sequences(array, fill_value=0.0):
-    dimensions = get_max_shape(array)
+    dimensions = get_max_shape_2(array)
+
     result = np.full(dimensions, fill_value)
     for index, value in iterate_nested_array(array):
         result[index] = value
     return np.array(result)
+
+def load_data(filepath, rows=None):
+    return pd.read_csv(filepath, nrows=rows)
+
