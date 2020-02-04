@@ -65,15 +65,16 @@ def iterate_nested_array(array, index=()):
         yield (*index, slice(len(array))), array
 
 def get_sentences(text):
-    return sent_tokenize(text)
+    sentences = sent_tokenize(text)
+    return sentences
 
 def pad_nested_sequences(array, fill_value=0.0):
-    dimensions = get_max_shape_2(array)
-
+    dimensions = (30, 100) #get_max_shape(array)
     result = np.full(dimensions, fill_value)
     for index, value in iterate_nested_array(array):
         result[index] = value
-    return np.array(result)
+    return result
+
 
 def load_data(filepath, rows=None):
     return pd.read_csv(filepath, nrows=rows)
