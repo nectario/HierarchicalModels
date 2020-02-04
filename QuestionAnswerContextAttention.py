@@ -121,7 +121,6 @@ class QuestionAnswer:
         return model
 
     def get_question_output(self, embedding):
-
         question_input = Input(shape=(question_max_size,), dtype="int64", name="question_input")
         text_embedding = embedding(question_input)
         output = Conv1D(128, 4, padding="same", activation="relu", strides=1)(text_embedding)
@@ -130,7 +129,7 @@ class QuestionAnswer:
 
     def get_section_model(self, sentence_model, question_output=None, question_input=None):
         section_input = Input(shape=(section_max_size, sentence_max_size), name="section_input")
-        section_encoded = TimeDistributed(sentence_model)([section_input, question_input])
+        section_encoded = TimeDistributed(sentence_model)([section_input,question_input])
         section_encoded = Conv1D(128, 4, padding="same", activation="relu", strides=1)(section_encoded)
         attention = AdditiveAttention()([section_encoded, question_output])
         output = GlobalAveragePooling1D()(attention)
