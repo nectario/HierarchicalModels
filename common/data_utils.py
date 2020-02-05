@@ -57,6 +57,7 @@ def get_max_shape(array):
         dimensions[level] = max(dimensions[level], length)
     return [value for _, value in sorted(dimensions.items())]
 
+
 def iterate_nested_array(array, index=()):
     try:
         for idx, row in enumerate(array):
@@ -69,10 +70,21 @@ def get_sentences(text):
     return sentences
 
 def pad_nested_sequences(array, fill_value=0.0):
-    dimensions = (30, 100) #get_max_shape(array)
+    dimensions = get_max_shape(array)
     result = np.full(dimensions, fill_value)
     for index, value in iterate_nested_array(array):
         result[index] = value
+    return result
+
+def pad_list_of_lists(array, fill_value=0.0, shape=()):
+    result = np.full(shape, fill_value)
+    for index, value in enumerate(array):
+        if index == shape[0]:
+            break
+        for idx, row in enumerate(value):
+            #result[index: len(value)] = value
+            result[index, idx, :len(row) if len(row) <= shape[1] else shape[1]] =  row[:shape[1]]
+
     return result
 
 

@@ -4,13 +4,17 @@ import pickle
 from tensorflow.keras.layers import Dense, Embedding, Input, LSTM, TimeDistributed
 from tensorflow.keras.models import Model
 from common.data_utils import *
+from MultiVectorizer import *
 
 class HierarchyModel:
 
-    def example(self):
+    def __init__(self, vectorizer=None):
+        self.vectorizer = vectorizer
+
+    def sequence_to_sequence_model(self):
         # Encode each timestep
         in_sentence = Input(shape=(None,), dtype='int64', ragged=True, name="Input1")
-        embedded_sentence = Embedding(5000, 300, trainable=True)(in_sentence)
+        embedded_sentence = Embedding(vectorizer.get_vocabulary_size(), 300, trainable=True)(in_sentence)
         lstm_sentence = LSTM(500)(embedded_sentence)
         encoded_model = Model(in_sentence, lstm_sentence)
 
@@ -29,7 +33,7 @@ class HierarchyModel:
         return model
 
     def get_model(self):
-        model = self.example()
+        model = self.sequence_to_sequence_model()
         return model
 
 
@@ -40,9 +44,10 @@ class HierarchyModel:
 
 if __name__ == "__main__":
 
-    model = HierarchyModel()
+    vectorizer = MultiVectorizer()
+    model = HierarchyModel(vectorizer=vectorizer)
 
-    imdb_data_df = load_data("C:/Development/Projects/IMDB/IMDB Dataset.csv")
+    imdb_data_df = load_data("C:/Development/Projects/IMDB/IMDB Dataset.csv", rows=400)
     imdb_data_df["review"] = imdb_data_df["review"].apply(get_sentences)
     imdb_data_df["labels"] = imdb_data_df["sentiment"].replace("positive",1).replace("negative",0)
 
@@ -50,13 +55,15 @@ if __name__ == "__main__":
 
     y = imdb_data_df["labels"]
 
-    X_train = X[0:25000]
-    y_train = y[0:25000]
-    X_train = pad_nested_sequences(X_train)
+    X_train = X[0:300]
+    y_train = y[0:300]
+    X_train = vectorizer.fit(X_train)
+    X_train = pad_list_of_lists(X_train, shape=(len(X_train), 50,150))
 
-    X_test = X[25000:30000]
-    y_test = y[25000:30000]
-    X_test = pad_nested_sequences(X_test)
+    X_test = X[300:-1]
+    y_test = y[300:-1]
+    X_test = vectorizer.fit(X_test)
+    X_test = pad_list_of_lists(X_test, shape=(len(X_test), 40,150))
 
     print("Done")
 

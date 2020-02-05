@@ -78,10 +78,21 @@ class MultiVectorizer():
             document_tokens.append(section_tokens)
         return document_tokens
 
+    def fit_samples_with_sentences(self, samples):
+        output_tokens = []
+        for sample in samples:
+            sentence_tokens = []
+            for sentence in sample:
+                tokens = self.tokenizer(sentence.lower())
+                word_str_tokens = list(map(convert_to_string, tokens))
+                sentence_tokens.append(word_str_tokens)
+                self.vocabulary.add_documents(sentence_tokens)
+            output_tokens.append(sentence_tokens)
+        return output_tokens
 
     def fit(self, X):
         if type(X[0]) == list:
-            x_tokens = self.fit_document(X)
+            x_tokens = self.fit_samples_with_sentences(X) #self.fit_document(X)
         else:
             x_tokens = self.fit_text(X)
 
@@ -117,8 +128,14 @@ class MultiVectorizer():
         return x_tokens
 
     def transform(self, X):
-        return self.transform_document(X)
+        return self.transform_list_of_list(X)
 
+    def transform_list_of_list(self, samples):
+        samples_tokens = []
+        for sample in samples:
+            encoded_tokens = self.transform_section(sample)
+            samples_tokens.append(encoded_tokens)
+        return samples_tokens
 
     def transform_document(self, documents):
         document_tokens = []
